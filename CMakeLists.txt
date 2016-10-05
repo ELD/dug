@@ -4,5 +4,5 @@ project(dug)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 
-set(SOURCE_FILES src/main.cpp headers/includes.h)
+set(SOURCE_FILES src/main.cpp headers/includes.h headers/constants.h)
 add_executable(dug ${SOURCE_FILES})

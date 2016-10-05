@@ -8,7 +8,6 @@
 // C++ STL Headers
 #include <iostream>
 #include <vector>
-#include <string>
 #include <cstdint>
 
 // Unix headers
@@ -17,5 +16,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
+
+// Local includes
+#include "constants.h"
 
 #endif //DUG_INCLUDES_H

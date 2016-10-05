@@ -1,12 +1,5 @@
 #include "../headers/includes.h"
 
-struct udp_request {
-    int16_t source_port;
-    int16_t dest_port;
-    int16_t length;
-    int16_t* data;
-};
-
 int main(int argc, char** argv) {
     int sockfd, n;
     const int portno = 53;
