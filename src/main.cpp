@@ -1,19 +1,23 @@
 #include "../headers/includes.h"
 
+void close_socket(int fd)
+{
+    close(fd);
+}
+
 int main(int argc, char** argv) {
     int sockfd, n;
     const int portno = 53;
-    std::string hostname, destination;
+    std::string ip_to_find, nameserver_to_query;
     struct sockaddr_in serveraddr;
-    struct hostent *server;
 
     if (argc < 3) {
         std::cerr << "Incorrect usage" << std::endl;
         exit(1);
     }
 
-    hostname = argv[1];
-    destination = argv[2];
+    ip_to_find = argv[1];
+    nameserver_to_query = argv[2];
 
     sockfd = socket(PF_INET, SOCK_DGRAM, 0);
 
@@ -22,25 +26,28 @@ int main(int argc, char** argv) {
         exit(1);
     }
 
-    server = gethostbyname(hostname.c_str());
-
-    if (server == nullptr) {
-        std::cerr << "Error, no such host" << std::endl;
-        exit(1);
-    }
-
-    // I use memset since bzero and memset have no functional difference, just a preference
     memset(&serveraddr, 0, sizeof(serveraddr));
     serveraddr.sin_family = PF_INET;
-    // I use memcpy instead of bcpy same as above
-    memcpy((char *)serveraddr.sin_addr.s_addr, server->h_addr, (size_t) server->h_length);
+    serveraddr.sin_addr.s_addr = inet_addr(nameserver_to_query.c_str());
     serveraddr.sin_port = htons(portno);
 
     char* buf = (char *) "Hello";
 
-    int ret = (int) sendto(sockfd, buf, sizeof(buf), 0, (const sockaddr *) &serveraddr, sizeof(serveraddr));
+    std::cout << "Sending packet to socket" << std::endl;
+    n = (int) sendto(sockfd, buf, sizeof(buf), 0, (const sockaddr *) &serveraddr, sizeof(serveraddr));
+    if (n < 0) {
+        std::cerr << "Error in sending: " << strerror(errno) << std::endl;
+        close_socket(sockfd);
+        exit(-1);
+    }
 
+    std::cout << "Receiving response" << std::endl;
     n = (int) recvfrom(sockfd, buf, strlen(buf), 0, (sockaddr *) &serveraddr, (socklen_t *) sizeof(serveraddr));
+    if (n < 0) {
+        std::cerr << "Error in receiving: " << strerror(errno) << std::endl;
+        close_socket(sockfd);
+        exit(-1);
+    }
 
     std::cout << "From server: " << buf << std::endl;
 
