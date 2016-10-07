@@ -7,7 +7,7 @@
 
 #include <string>
 
-const int port = 53;
+const int PORT_NO = 53;
 const std::string rootnameserver = "a.root-servers.net";
 
 #endif //DUG_CONSTANTS_H

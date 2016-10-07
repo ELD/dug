@@ -5,9 +5,10 @@
 #ifndef DUG_INCLUDES_H
 #define DUG_INCLUDES_H
 
-// C++ STL Headers
+// C/C++ STL Headers
 #include <iostream>
 #include <vector>
+#include <string>
 #include <cstdint>
 
 // Unix headers
@@ -20,5 +21,7 @@
 
 // Local includes
 #include "constants.h"
+#include "structures.h"
+#include "functions.h"
 
 #endif //DUG_INCLUDES_H
