@@ -7,6 +7,10 @@
 
 #include <cstdint>
 
+// Layout:
+// Header ~ 12 bytes
+// QNAME ?? bytes, 63 bytes max?
+// Question ~ 4 bytes
 #pragma pack(1)
 typedef struct {
     // Row 1

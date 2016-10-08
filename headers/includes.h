@@ -10,6 +10,7 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <sstream>
 
 // Unix headers
 #include <unistd.h>

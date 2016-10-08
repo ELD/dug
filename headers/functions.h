@@ -8,6 +8,9 @@
 #include "structures.h"
 
 DNSQueryHeader *make_query_header();
-DNSQueryQuestion *make_query_question(std::string const&);
+
+DNSQueryQuestion *make_query_question();
+
+std::string domain_to_dns_format(std::string);
 
 #endif //DUG_FUNCTIONS_H

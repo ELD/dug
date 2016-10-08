@@ -24,11 +24,44 @@ DNSQueryHeader *make_query_header()
     return q;
 }
 
-DNSQueryQuestion *make_query_question(std::string const &domain)
+DNSQueryQuestion *make_query_question()
 {
     DNSQueryQuestion *q = new DNSQueryQuestion;
     q->qtype = ntohs(1);
     q->qclass = ntohs(1);
 
     return q;
+}
+
+std::string domain_to_dns_format(std::string domain)
+{
+    std::vector<std::string> segments;
+
+    unsigned long loc;
+    while (domain.find(".") != std::string::npos) {
+        loc = domain.find(".");
+        segments.emplace_back(domain.substr(0, loc));
+        domain.erase(0, loc + 1);
+    }
+
+    segments.emplace_back(domain);
+
+    int seg_bytes = 0;
+    for (auto& seg : segments) {
+        seg_bytes += seg.size();
+    }
+
+    char *buffer = new char[segments.size() + seg_bytes];
+
+    int counter = 0;
+    for (auto& seg : segments) {
+        buffer[counter] = (char) seg.size();
+        counter += 1;
+        for (auto& c : seg) {
+            buffer[counter] = c;
+            counter += 1;
+        }
+    }
+
+    return std::string(buffer);
 }
