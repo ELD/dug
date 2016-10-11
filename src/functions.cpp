@@ -33,7 +33,7 @@ DNSQueryQuestion *make_query_question()
     return q;
 }
 
-std::string domain_to_dns_format(std::string domain)
+uint8_t *domain_to_dns_format(std::string domain)
 {
     std::vector<std::string> segments;
 
@@ -51,17 +51,26 @@ std::string domain_to_dns_format(std::string domain)
         seg_bytes += seg.size();
     }
 
-    char *buffer = new char[segments.size() + seg_bytes];
+    uint8_t *buffer = new uint8_t[segments.size() + seg_bytes];
 
     int counter = 0;
     for (auto& seg : segments) {
-        buffer[counter] = (char) seg.size();
+        buffer[counter] = (uint8_t) seg.size();
         counter += 1;
         for (auto& c : seg) {
-            buffer[counter] = c;
+            buffer[counter] = (uint8_t) c;
             counter += 1;
         }
     }
 
-    return std::string(buffer);
+    return buffer;
+}
+
+void close_socket(int fd)
+{
+    close(fd);
+}
+
+uint16_t get_domain_offset_from_answer(uint16_t offset) {
+    return (uint16_t) (offset & 0x3FFF);
 }

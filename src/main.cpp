@@ -1,13 +1,9 @@
 #include "../headers/includes.h"
 
-// TODO: Make this all not suck
-
-void close_socket(int fd) {
-    close(fd);
-}
-
+// TODO: Refactor to properly delete buffers and not copy data (point to position in buffer)
 int main(int argc, char **argv) {
-    int sockfd, n;
+    int sockfd;
+    ssize_t n;
     std::string ip_to_find, nameserver_to_query;
     struct sockaddr_in serveraddr;
 
@@ -16,7 +12,7 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    ip_to_find = domain_to_dns_format(argv[1]);
+    ip_to_find = (char *) domain_to_dns_format(argv[1]);
     nameserver_to_query = argv[2];
 
     sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
@@ -34,10 +30,10 @@ int main(int argc, char **argv) {
     DNSQueryHeader *query = make_query_header();
     DNSQueryQuestion *question = make_query_question();
 
-    // FIXME: The following section is totally not safe, don't ever do this
-    size_t header_size = sizeof(*query);
-    size_t question_size = sizeof(*question);
+    size_t header_size = sizeof(DNSQueryHeader);
+    size_t question_size = sizeof(DNSQueryQuestion);
     size_t domain_to_query_size = ip_to_find.size() + 1;
+    size_t total_size = header_size + question_size + domain_to_query_size;
 
     uint8_t *send_buf = new uint8_t[header_size + question_size];
     std::memcpy(
@@ -48,17 +44,16 @@ int main(int argc, char **argv) {
     std::memcpy(
             send_buf + header_size,
             ip_to_find.c_str(),
-            ip_to_find.size()
+            domain_to_query_size
     );
     std::memcpy(
             send_buf + domain_to_query_size + header_size,
             question,
-            sizeof(*question)
+            question_size
     );
-    // END FIXME
 
     socklen_t len = sizeof(serveraddr);
-    n = (int) sendto(sockfd, send_buf, header_size + question_size + domain_to_query_size, 0,
+    n = sendto(sockfd, send_buf, total_size, 0,
                      (const sockaddr *) &serveraddr, len);
     if (n < 0) {
         std::cerr << "Error in sending: " << strerror(errno) << std::endl;
@@ -66,15 +61,22 @@ int main(int argc, char **argv) {
         exit(-1);
     }
 
-    char *buf;
-    n = (int) recvfrom(sockfd, buf, strlen(buf), 0, (sockaddr *) &serveraddr, &len);
+    uint8_t buf[65527];
+    n = recvfrom(sockfd, buf, 65527, 0, (sockaddr *) &serveraddr, &len);
     if (n < 0) {
         std::cerr << "Error in receiving: " << strerror(errno) << std::endl;
         close_socket(sockfd);
         exit(-1);
     }
 
-    std::cout << "From server: " << buf << std::endl;
+    // buf contains header + domain + question + answer
+    DNSAnswerSegment *answer = nullptr;
+    answer = (DNSAnswerSegment *) &buf[total_size + 1];
+
+    std::cout << "domain offset is " << get_domain_offset_from_answer(answer->nameOffset) << std::endl;
+    std::cout << "type is " << answer->type << std::endl;
+
+    close_socket(sockfd);
 
     return 0;
 }

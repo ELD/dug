@@ -11,6 +11,10 @@ DNSQueryHeader *make_query_header();
 
 DNSQueryQuestion *make_query_question();
 
-std::string domain_to_dns_format(std::string);
+uint8_t *domain_to_dns_format(std::string);
 
-#endif //DUG_FUNCTIONS_H
+void close_socket(int);
+
+uint16_t get_domain_offset_from_answer(uint16_t);
+
+#endif // DUG_FUNCTIONS_H
