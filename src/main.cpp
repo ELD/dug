@@ -27,30 +27,38 @@ int main(int argc, char **argv) {
     serveraddr.sin_addr.s_addr = inet_addr(nameserver_to_query.c_str());
     serveraddr.sin_port = htons(PORT_NO);
 
-    DNSQueryHeader *query = make_query_header();
-    DNSQueryQuestion *question = make_query_question();
-
     size_t header_size = sizeof(DNSQueryHeader);
     size_t question_size = sizeof(DNSQueryQuestion);
+    // Need to add one since c_str() adds a null terminator
     size_t domain_to_query_size = ip_to_find.size() + 1;
     size_t total_size = header_size + question_size + domain_to_query_size;
+    std::cout << "Size of header: " << header_size << std::endl <<
+              "Size of question: " << question_size << std::endl <<
+              "Size of domain c_str: " << ip_to_find.size() + 1 << std::endl;
 
-    uint8_t *send_buf = new uint8_t[header_size + question_size];
-    std::memcpy(
-            send_buf,
-            query,
-            header_size
-    );
-    std::memcpy(
-            send_buf + header_size,
-            ip_to_find.c_str(),
-            domain_to_query_size
-    );
-    std::memcpy(
-            send_buf + domain_to_query_size + header_size,
-            question,
-            question_size
-    );
+    // Absolutely dangerous, why would you do this?!?!
+    uint8_t *send_buf = new uint8_t[total_size];
+    DNSQueryHeader *header = (DNSQueryHeader *) send_buf;
+    header->id = htons(getpid());
+    header->qr = 0;
+    header->opcode = 0;
+    header->aa = 0;
+    header->tc = 0;
+    header->rd = 0;
+    header->ra = 0;
+    header->z = 0;
+    header->rcode = 0;
+    header->qdcount = ntohs(1);
+    header->ancount = 0;
+    header->nscount = 0;
+    header->arcount = 0;
+
+    char *domain = (char *) (send_buf + header_size);
+    strcpy(domain, ip_to_find.c_str());
+
+    DNSQueryQuestion *question = (DNSQueryQuestion *) (send_buf + header_size + domain_to_query_size);
+    question->qtype = ntohs(1);
+    question->qclass = ntohs(1);
 
     socklen_t len = sizeof(serveraddr);
     n = sendto(sockfd, send_buf, total_size, 0,
