@@ -4,33 +4,27 @@
 
 #include "../headers/includes.h"
 
-DNSQueryHeader *make_query_header()
+void make_query_header(DNSQueryHeader *header)
 {
-    DNSQueryHeader *q = new DNSQueryHeader;
-    q->id = htons(getpid());
-    q->qr = 0;
-    q->opcode = 0;
-    q->aa = 0;
-    q->tc = 0;
-    q->rd = 0;
-    q->ra = 0;
-    q->z = 0;
-    q->rcode = 0;
-    q->qdcount = ntohs(1);
-    q->ancount = 0;
-    q->nscount = 0;
-    q->arcount = 0;
-
-    return q;
+    header->id = htons(getpid());
+    header->qr = 0;
+    header->opcode = 0;
+    header->aa = 0;
+    header->tc = 0;
+    header->rd = 0;
+    header->ra = 0;
+    header->z = 0;
+    header->rcode = 0;
+    header->qdcount = ntohs(1);
+    header->ancount = 0;
+    header->nscount = 0;
+    header->arcount = 0;
 }
 
-DNSQueryQuestion *make_query_question()
+void make_query_question(DNSQueryQuestion *question)
 {
-    DNSQueryQuestion *q = new DNSQueryQuestion;
-    q->qtype = ntohs(1);
-    q->qclass = ntohs(1);
-
-    return q;
+    question->qtype = ntohs(1);
+    question->qclass = ntohs(1);
 }
 
 uint8_t *domain_to_dns_format(std::string domain)
@@ -47,18 +41,18 @@ uint8_t *domain_to_dns_format(std::string domain)
     segments.emplace_back(domain);
 
     int seg_bytes = 0;
-    for (auto& seg : segments) {
+    for (auto &seg : segments) {
         seg_bytes += seg.size();
     }
 
     uint8_t *buffer = new uint8_t[segments.size() + seg_bytes];
 
     int counter = 0;
-    for (auto& seg : segments) {
-        buffer[counter] = (uint8_t) seg.size();
+    for (auto &seg : segments) {
+        buffer[counter] = (uint8_t)seg.size();
         counter += 1;
-        for (auto& c : seg) {
-            buffer[counter] = (uint8_t) c;
+        for (auto &c : seg) {
+            buffer[counter] = (uint8_t)c;
             counter += 1;
         }
     }
@@ -66,11 +60,54 @@ uint8_t *domain_to_dns_format(std::string domain)
     return buffer;
 }
 
-void close_socket(int fd)
+void close_socket(int fd) { close(fd); }
+
+std::string read_name(uint8_t *buffer, size_t name_start)
 {
-    close(fd);
+    std::string domain;
+    // read until null terminator
+    // ex: 3www6google3com
+    size_t ptr = name_start;
+    while (buffer[ptr] != 0) {
+        size_t num = buffer[ptr];
+        for (int i = 0; i < num; ++i) {
+            domain += buffer[ptr + i + 1];
+        }
+
+        domain += ".";
+        ptr += num + 1;
+    }
+
+    return domain;
 }
 
-uint16_t get_domain_offset_from_answer(uint16_t offset) {
-    return (uint16_t) (offset & 0x3FFF);
+bool is_pointer(uint8_t first_word) { return first_word == 192; }
+
+std::string decode_answer_type(uint16_t answer_type)
+{
+    std::string str_answer_type;
+    switch (ntohs(answer_type)) {
+    case 1:
+        str_answer_type = "A";
+        break;
+    case 2:
+        str_answer_type = "NS";
+        break;
+    case 5:
+        str_answer_type = "CNAME";
+        break;
+    case 6:
+        str_answer_type = "SOA";
+        break;
+    case 12:
+        str_answer_type = "MX";
+        break;
+    case 15:
+        str_answer_type = "PTR";
+        break;
+    default:
+        break;
+    }
+
+    return str_answer_type;
 }

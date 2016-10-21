@@ -43,7 +43,6 @@ typedef struct {
 // Should be okay since name is typically c0 0c or byte 12
 #pragma pack(1)
 typedef struct {
-    uint16_t nameOffset;
     uint16_t type;
     uint16_t responseClass;
     uint32_t ttl;
