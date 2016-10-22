@@ -9,6 +9,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <cstring>
 #include <cstdint>
 #include <sstream>
 #include <boost/program_options.hpp>
