@@ -1,12 +1,26 @@
 #include "../headers/includes.h"
 
 // TODO: Refactor to properly delete buffers and not copy data (point to position in buffer)
-int main(int argc, char **argv)
+int main(int argc, const char *argv[])
 {
     int sockfd;
     ssize_t n;
     std::string ip_to_find, nameserver_to_query;
     struct sockaddr_in serveraddr;
+
+    po::options_description options{"Allowed Options:"};
+    options.add_options()
+            ("type,t", "Type of the requested DNS record")
+            ("help,h", "Help using dug");
+
+    po::variables_map vmap;
+    po::store(po::parse_command_line(argc, argv, options), vmap);
+    po::notify(vmap);
+
+    if (vmap.count("help")) {
+        std::cout << options << std::endl;
+        return 0;
+    }
 
     if (argc < 3) {
         std::cerr << "Incorrect usage" << std::endl;
@@ -54,8 +68,8 @@ int main(int argc, char **argv)
     }
 
     // Max DNS packet size is 512 bytes as per RFC 1035 (?)
-    uint8_t buf[512];
-    n = recvfrom(sockfd, buf, sizeof(buf), 0, (sockaddr *)&serveraddr, &len);
+    uint8_t *ans_buf = new uint8_t[512];
+    n = recvfrom(sockfd, ans_buf, 512, 0, (sockaddr *)&serveraddr, &len);
     if (n < 0) {
         std::cerr << "Error in receiving: " << strerror(errno) << std::endl;
         close_socket(sockfd);
@@ -66,26 +80,31 @@ int main(int argc, char **argv)
     // Read the domain in the answer section to figure out where the rest of the answer begins
 
     size_t domain_offset = total_size;
-    if (is_pointer(buf[total_size])) {
-        domain_offset = buf[total_size + 1];
+    if (is_pointer(ans_buf[total_size])) {
+        domain_offset = ans_buf[total_size + 1];
     }
 
-    std::string answer_name = read_name(buf, domain_offset);
+    std::string answer_name = read_name(ans_buf, domain_offset);
 
     std::cout << "Domain? " << answer_name << std::endl;
 
     size_t answer_offset = total_size;
-    if (is_pointer(buf[total_size])) {
+    if (is_pointer(ans_buf[total_size])) {
         answer_offset += 2;
-    } else {
+    }
+    else {
         answer_offset += answer_name.size() + 1;
     }
 
-    DNSAnswerSegment *answer = (DNSAnswerSegment *)&buf[answer_offset];
+    DNSAnswerSegment *answer = (DNSAnswerSegment *)&ans_buf[answer_offset];
 
     std::cout << "type: " << decode_answer_type(answer->type) << std::endl;
     std::cout << "answer class: " << ntohs(answer->responseClass) << std::endl;
+    std::cout << "ttl: " << ntohs(answer->ttl) << std::endl;
+    std::cout << "RDData length: " << ntohs(answer->rdlength) << std::endl;
 
+    delete[] send_buf;
+    delete[] ans_buf;
     close_socket(sockfd);
 
     return 0;

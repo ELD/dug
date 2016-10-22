@@ -11,6 +11,7 @@
 #include <string>
 #include <cstdint>
 #include <sstream>
+#include <boost/program_options.hpp>
 
 // Unix headers
 #include <unistd.h>
@@ -24,5 +25,7 @@
 #include "constants.h"
 #include "structures.h"
 #include "functions.h"
+
+namespace po = boost::program_options;
 
 #endif //DUG_INCLUDES_H

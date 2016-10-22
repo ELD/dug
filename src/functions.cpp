@@ -111,3 +111,14 @@ std::string decode_answer_type(uint16_t answer_type)
 
     return str_answer_type;
 }
+
+std::string decode_ip(uint32_t ip_addr) {
+    std::string ip_str;
+
+    struct in_addr ip;
+    ip.s_addr = ip_addr;
+
+    ip_str = inet_ntoa(ip);
+
+    return ip_str;
+}
