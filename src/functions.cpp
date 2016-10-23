@@ -138,7 +138,7 @@ void decode_header(DNSQueryHeader *header, uint16_t value)
     header->rcode = (uint16_t)((value >> 3) & ~((uint16_t)~0 << 4));
 }
 
-std::string get_dns_error(uint8_t error_code)
+std::string get_dns_error(uint16_t error_code)
 {
     std::string error;
     if (error_code == 1) {
