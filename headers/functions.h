@@ -10,6 +10,12 @@
 // TODO: make functions to build different types of queries (i.e. A, CNAME, NS, MX, PTR, SOA)
 // TODO: make functions to read different types of answers (i.e. A, CNAME, NS, MX, PTR, SOA)
 // TODO: add debug messages
+void make_a_record_request();
+
+uint8_t *make_request(uint8_t*);
+
+void read_a_record_response();
+
 void make_query_header(DNSQueryHeader *);
 
 void make_query_question(DNSQueryQuestion *);

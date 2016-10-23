@@ -8,16 +8,27 @@ int main(int argc, const char *argv[])
     std::string ip_to_find, nameserver_to_query;
     struct sockaddr_in serveraddr;
 
-    po::options_description options{"Allowed Options:"};
+    po::options_description options{"Allowed Options"};
     options.add_options()
-            ("type,t", "Type of the requested DNS record")
-            ("help,h", "Help using dug");
+            ("help,h", "Help using dug")
+            ("type,t",
+             po::value<std::string>()->value_name("record type")->default_value("A"),
+             "Type of the requested DNS record"
+            );
+
+    po::positional_options_description pa_options;
+    pa_options.add("domain", -1);
+    pa_options.add("server", -1);
+
+    po::command_line_parser parser{argc, argv};
+    parser.options(options).positional(pa_options).allow_unregistered();
 
     po::variables_map vmap;
-    po::store(po::parse_command_line(argc, argv, options), vmap);
+    po::store(parser.run(), vmap);
     po::notify(vmap);
 
     if (vmap.count("help")) {
+        std::cout << "Usage: dug [options] [domain] [server]" << std::endl;
         std::cout << options << std::endl;
         return 0;
     }
