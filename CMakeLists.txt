@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.5)
 project(dug)
 
-set(BOOST_USE_STATIC_LIBS ON)
+set(BOOST_USE_STATIC_LIBS OFF)
 set(BOOST_USE_MULTITHREADED ON)
-set(BOOST_USE_STATIC_RUNTIME ON)
+set(BOOST_USE_STATIC_RUNTIME OFF)
 
 find_package(BOOST COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})

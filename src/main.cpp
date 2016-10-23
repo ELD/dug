@@ -18,8 +18,8 @@ int main(int argc, const char *argv[])
              po::value<std::string>()->value_name("record type")->default_value("A"),
              "Type of the requested DNS record"
             )
-            ("domain", po::value<std::string>()->required(), "The domain to query DNS records for")
-            ("server", po::value<std::string>()->required(), "The DNS server to query");
+            ("domain", po::value<std::string>(), "The domain to query DNS records for")
+            ("server", po::value<std::string>(), "The DNS server to query");
 
     po::positional_options_description pa_options;
     pa_options.add("domain", 1);
@@ -111,6 +111,14 @@ int main(int argc, const char *argv[])
         exit(-1);
     }
 
+//    header = (DNSQueryHeader *)ans_buf;
+//    std::cout << "id: " << ntohs(header->id) << std::endl
+//            << "qr: " << ntohs(header->qr) << std::endl
+//            << "opcode: " << ntohs(header->opcode) << std::endl
+//            << "Authoritative: " << ntohs(header->aa) << std::endl
+//            << "question count: " << ntohs(header->qdcount) << std::endl
+//            << "answer count: " << ntohs(header->ancount) << std::endl;
+
     // buf contains header + domain + question + answer
     // Read the domain in the answer section to figure out where the rest of the answer begins
     size_t domain_offset = total_size;
@@ -128,18 +136,18 @@ int main(int argc, const char *argv[])
         answer_offset += answer_name.size() + 1;
     }
 
-    DNSQueryHeader *query = (DNSQueryHeader *)ans_buf;
     DNSAnswerSegment *answer = (DNSAnswerSegment *)&ans_buf[answer_offset];
 
-    std::cout << "id: " << ntohs(query->id) << std::endl
-            << "qr: " << ntohs(query->qr) << std::endl
-            << "Authoritative: " << ntohs(query->aa) << std::endl
-            << "question count: " << ntohs(query->qdcount) << std::endl
-            << "answer count: " << ntohs(query->ancount) << std::endl;
-//    std::cout << "type: " << decode_answer_type(answer->type) << std::endl;
-//    std::cout << "answer class: " << ntohs(answer->responseClass) << std::endl;
-//    std::cout << "ttl: " << ntohs(answer->ttl) << std::endl;
-//    std::cout << "RDData length: " << ntohs(answer->rdlength) << std::endl;
+    if (decode_answer_type(answer->type) == "A") {
+        size_t rd_data_start = answer_offset + sizeof(DNSAnswerSegment);
+        uint32_t ip_addr;
+        ip_addr = ans_buf[rd_data_start] |
+                (ans_buf[rd_data_start + 1] << 8) |
+                (ans_buf[rd_data_start + 2] << 16) |
+                (ans_buf[rd_data_start + 3] << 24);
+        std::string ip = decode_ip(ip_addr);
+        std::cout << "(Non) Authoritative answer: " << ip << std::endl;
+    }
 
     delete[] send_buf;
     delete[] ans_buf;

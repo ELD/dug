@@ -45,7 +45,7 @@ uint8_t *domain_to_dns_format(std::string domain)
         seg_bytes += seg.size();
     }
 
-    uint8_t *buffer = new uint8_t[segments.size() + seg_bytes];
+    uint8_t *buffer = new uint8_t[segments.size() + seg_bytes + 1];
 
     int counter = 0;
     for (auto &seg : segments) {
@@ -56,6 +56,8 @@ uint8_t *domain_to_dns_format(std::string domain)
             counter += 1;
         }
     }
+
+    buffer[segments.size() + seg_bytes] = '\0';
 
     return buffer;
 }
