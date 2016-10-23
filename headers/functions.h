@@ -16,7 +16,7 @@ uint8_t *domain_to_dns_format(std::string);
 
 void close_socket(int);
 
-std::string read_name(uint8_t*, size_t);
+std::string read_name(uint8_t *, size_t);
 
 bool is_pointer(uint8_t);
 
@@ -24,7 +24,7 @@ std::string decode_answer_type(uint16_t);
 
 std::string decode_ip(uint32_t);
 
-void decode_header(DNSQueryHeader*, uint16_t);
+void decode_header(DNSQueryHeader *, uint16_t);
 
 std::string get_dns_error(uint16_t);
 

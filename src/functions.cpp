@@ -138,17 +138,22 @@ void decode_header(DNSQueryHeader *header, uint16_t value)
     header->rcode = (uint16_t)((value >> 3) & ~((uint16_t)~0 << 4));
 }
 
-std::string get_dns_error(uint8_t error_code) {
+std::string get_dns_error(uint8_t error_code)
+{
     std::string error;
     if (error_code == 1) {
         error = "Malformed packet";
-    } else if (error_code == 2) {
+    }
+    else if (error_code == 2) {
         error = "Server failure";
-    } else if (error_code == 3) {
+    }
+    else if (error_code == 3) {
         error = "The server has no record of the requested domain";
-    } else if (error_code == 4) {
+    }
+    else if (error_code == 4) {
         error = "The nameserver does not support the type of query requested";
-    } else {
+    }
+    else {
         error = "The nameserver refused the request";
     }
 
