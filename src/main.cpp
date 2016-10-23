@@ -8,17 +8,22 @@ int main(int argc, const char *argv[])
     std::string ip_to_find, nameserver_to_query;
     struct sockaddr_in serveraddr;
 
+    //////////////////////////////////////////////////////////////////////////////////
+    // Command Line Arguments
+    //////////////////////////////////////////////////////////////////////////////////
     po::options_description options{"Allowed Options"};
     options.add_options()
             ("help,h", "Help using dug")
             ("type,t",
              po::value<std::string>()->value_name("record type")->default_value("A"),
              "Type of the requested DNS record"
-            );
+            )
+            ("domain", po::value<std::string>()->required(), "The domain to query DNS records for")
+            ("server", po::value<std::string>()->required(), "The DNS server to query");
 
     po::positional_options_description pa_options;
-    pa_options.add("domain", -1);
-    pa_options.add("server", -1);
+    pa_options.add("domain", 1);
+    pa_options.add("server", 2);
 
     po::command_line_parser parser{argc, argv};
     parser.options(options).positional(pa_options).allow_unregistered();
@@ -31,15 +36,31 @@ int main(int argc, const char *argv[])
         std::cout << "Usage: dug [options] [domain] [server]" << std::endl;
         std::cout << options << std::endl;
         return 0;
+    } else if (!vmap.count("domain") || !vmap.count("server")) {
+        std::cout << "Too few arguments provided. Printing usage." << std::endl;
+        std::cout << "Usage: dug [options] [domain] [server]" << std::endl;
+        std::cout << options << std::endl;
+        return 1;
     }
 
-    if (argc < 3) {
-        std::cerr << "Incorrect usage" << std::endl;
-        exit(1);
+    std::string record_type;
+    if (vmap.count("type")) {
+        record_type = vmap["type"].as<std::string>();
     }
+    //////////////////////////////////////////////////////////////////////////////////
 
-    ip_to_find = (char *)domain_to_dns_format(argv[1]);
-    nameserver_to_query = argv[2];
+    //////////////////////////////////////////////////////////////////////////////////
+    // Opening connection
+    //////////////////////////////////////////////////////////////////////////////////
+    ip_to_find = (char *)domain_to_dns_format(vmap["domain"].as<std::string>());
+    nameserver_to_query = vmap["server"].as<std::string>();
+
+    if (record_type == "A") {
+
+    } else {
+        std::cout << "That record type is not supported." << std::endl;
+        return 1;
+    }
 
     sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
@@ -70,6 +91,9 @@ int main(int argc, const char *argv[])
     DNSQueryQuestion *question = (DNSQueryQuestion *)(send_buf + header_size + domain_to_query_size);
     make_query_question(question);
 
+    //////////////////////////////////////////////////////////////////////////////////
+    // Sending and receiving the data and parsing it
+    //////////////////////////////////////////////////////////////////////////////////
     socklen_t len = sizeof(serveraddr);
     n = sendto(sockfd, send_buf, total_size, 0, (const sockaddr *)&serveraddr, len);
     if (n < 0) {
@@ -89,15 +113,12 @@ int main(int argc, const char *argv[])
 
     // buf contains header + domain + question + answer
     // Read the domain in the answer section to figure out where the rest of the answer begins
-
     size_t domain_offset = total_size;
     if (is_pointer(ans_buf[total_size])) {
         domain_offset = ans_buf[total_size + 1];
     }
 
     std::string answer_name = read_name(ans_buf, domain_offset);
-
-    std::cout << "Domain? " << answer_name << std::endl;
 
     size_t answer_offset = total_size;
     if (is_pointer(ans_buf[total_size])) {
@@ -107,12 +128,18 @@ int main(int argc, const char *argv[])
         answer_offset += answer_name.size() + 1;
     }
 
+    DNSQueryHeader *query = (DNSQueryHeader *)ans_buf;
     DNSAnswerSegment *answer = (DNSAnswerSegment *)&ans_buf[answer_offset];
 
-    std::cout << "type: " << decode_answer_type(answer->type) << std::endl;
-    std::cout << "answer class: " << ntohs(answer->responseClass) << std::endl;
-    std::cout << "ttl: " << ntohs(answer->ttl) << std::endl;
-    std::cout << "RDData length: " << ntohs(answer->rdlength) << std::endl;
+    std::cout << "id: " << ntohs(query->id) << std::endl
+            << "qr: " << ntohs(query->qr) << std::endl
+            << "Authoritative: " << ntohs(query->aa) << std::endl
+            << "question count: " << ntohs(query->qdcount) << std::endl
+            << "answer count: " << ntohs(query->ancount) << std::endl;
+//    std::cout << "type: " << decode_answer_type(answer->type) << std::endl;
+//    std::cout << "answer class: " << ntohs(answer->responseClass) << std::endl;
+//    std::cout << "ttl: " << ntohs(answer->ttl) << std::endl;
+//    std::cout << "RDData length: " << ntohs(answer->rdlength) << std::endl;
 
     delete[] send_buf;
     delete[] ans_buf;
