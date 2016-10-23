@@ -7,9 +7,6 @@
 
 #include "structures.h"
 
-// TODO: make functions to build different types of queries (i.e. A, CNAME, NS, MX, PTR, SOA)
-// TODO: make functions to read different types of answers (i.e. A, CNAME, NS, MX, PTR, SOA)
-// TODO: add debug messages
 void make_query_header(DNSQueryHeader *);
 
 void make_query_question(DNSQueryQuestion *);
@@ -26,5 +23,9 @@ bool is_pointer(uint8_t);
 std::string decode_answer_type(uint16_t);
 
 std::string decode_ip(uint32_t);
+
+void decode_header(DNSQueryHeader*, uint16_t);
+
+std::string get_dns_error(uint16_t);
 
 #endif // DUG_FUNCTIONS_H

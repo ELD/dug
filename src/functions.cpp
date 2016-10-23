@@ -114,7 +114,8 @@ std::string decode_answer_type(uint16_t answer_type)
     return str_answer_type;
 }
 
-std::string decode_ip(uint32_t ip_addr) {
+std::string decode_ip(uint32_t ip_addr)
+{
     std::string ip_str;
 
     struct in_addr ip;
@@ -123,4 +124,33 @@ std::string decode_ip(uint32_t ip_addr) {
     ip_str = inet_ntoa(ip);
 
     return ip_str;
+}
+
+void decode_header(DNSQueryHeader *header, uint16_t value)
+{
+    header->qr = (uint16_t)(value >> 15);
+    header->opcode = (uint16_t)((value >> 11) & ~((uint16_t)~0 << 4));
+    header->aa = (uint16_t)((value >> 10) & ~((uint16_t)~0 << 1));
+    header->tc = (uint16_t)((value >> 9) & ~((uint16_t)~0 << 1));
+    header->rd = (uint16_t)((value >> 8) & ~((uint16_t)~0 << 1));
+    header->ra = (uint16_t)((value >> 7) & ~((uint16_t)~0 << 1));
+    header->z = (uint16_t)((value >> 6) & ~((uint16_t)~0 << 3));
+    header->rcode = (uint16_t)((value >> 3) & ~((uint16_t)~0 << 4));
+}
+
+std::string get_dns_error(uint8_t error_code) {
+    std::string error;
+    if (error_code == 1) {
+        error = "Malformed packet";
+    } else if (error_code == 2) {
+        error = "Server failure";
+    } else if (error_code == 3) {
+        error = "The server has no record of the requested domain";
+    } else if (error_code == 4) {
+        error = "The nameserver does not support the type of query requested";
+    } else {
+        error = "The nameserver refused the request";
+    }
+
+    return error;
 }

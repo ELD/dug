@@ -1,6 +1,5 @@
 #include "../headers/includes.h"
 
-// TODO: Refactor to properly delete buffers and not copy data (point to position in buffer)
 int main(int argc, const char *argv[])
 {
     int sockfd;
@@ -111,13 +110,15 @@ int main(int argc, const char *argv[])
         exit(-1);
     }
 
-//    header = (DNSQueryHeader *)ans_buf;
-//    std::cout << "id: " << ntohs(header->id) << std::endl
-//            << "qr: " << ntohs(header->qr) << std::endl
-//            << "opcode: " << ntohs(header->opcode) << std::endl
-//            << "Authoritative: " << ntohs(header->aa) << std::endl
-//            << "question count: " << ntohs(header->qdcount) << std::endl
-//            << "answer count: " << ntohs(header->ancount) << std::endl;
+    // TODO: If no answers provided, do recursive requests
+    header = (DNSQueryHeader *)ans_buf;
+    decode_header(header, ntohs(ans_buf[2]));
+    header->id = (uint16_t) ntohs(*ans_buf);
+
+    if (!header->rcode) {
+        std::cout << "An error occurred: " << get_dns_error(header->rcode) << std::endl;
+        return 1;
+    }
 
     // buf contains header + domain + question + answer
     // Read the domain in the answer section to figure out where the rest of the answer begins
@@ -146,7 +147,11 @@ int main(int argc, const char *argv[])
                 (ans_buf[rd_data_start + 2] << 16) |
                 (ans_buf[rd_data_start + 3] << 24);
         std::string ip = decode_ip(ip_addr);
-        std::cout << "(Non) Authoritative answer: " << ip << std::endl;
+        if (header->aa == 1) {
+            std::cout << "Authoritative answer: " << ip << std::endl;
+        } else {
+            std::cout << "Non-authoritative answer: " << ip << std::endl;
+        }
     }
 
     delete[] send_buf;
