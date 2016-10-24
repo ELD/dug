@@ -6,6 +6,8 @@ int main(int argc, const char *argv[])
     ssize_t n;
     std::string ip_to_find, nameserver_to_query;
     struct sockaddr_in serveraddr;
+    std::vector<std::string> valid_record_types{"A", "CNAME", "NS", "MX", "SOA", "PTR"};
+    bool found_answer = false;
 
     //////////////////////////////////////////////////////////////////////////////////
     // Command Line Arguments
@@ -54,9 +56,7 @@ int main(int argc, const char *argv[])
     ip_to_find = (char *)domain_to_dns_format(vmap["domain"].as<std::string>());
     nameserver_to_query = vmap["server"].as<std::string>();
 
-    if (record_type == "A") {
-
-    } else {
+    if (std::find(valid_record_types.begin(), valid_record_types.end(), record_type) == valid_record_types.end()) {
         std::cout << "That record type is not supported." << std::endl;
         return 1;
     }
@@ -112,10 +112,9 @@ int main(int argc, const char *argv[])
 
     // TODO: If no answers provided, do recursive requests
     header = (DNSQueryHeader *)ans_buf;
-    decode_header(header, ntohs(ans_buf[2]));
-    header->id = (uint16_t) ntohs(*ans_buf);
+    decode_header(header, ntohs(((ans_buf[3] << 8) | ans_buf[2])));
 
-    if (!header->rcode) {
+    if (header->rcode != 0) {
         std::cout << "An error occurred: " << get_dns_error(header->rcode) << std::endl;
         return 1;
     }

@@ -71,6 +71,10 @@ std::string read_name(uint8_t *buffer, size_t name_start)
     // ex: 3www6google3com
     size_t ptr = name_start;
     while (buffer[ptr] != 0) {
+        if (buffer[ptr] == 192) {
+            ptr = buffer[ptr + 1];
+        }
+
         size_t num = buffer[ptr];
         for (int i = 0; i < num; ++i) {
             domain += buffer[ptr + i + 1];
@@ -135,7 +139,7 @@ void decode_header(DNSQueryHeader *header, uint16_t value)
     header->rd = (uint16_t)((value >> 8) & ~((uint16_t)~0 << 1));
     header->ra = (uint16_t)((value >> 7) & ~((uint16_t)~0 << 1));
     header->z = (uint16_t)((value >> 6) & ~((uint16_t)~0 << 3));
-    header->rcode = (uint16_t)((value >> 3) & ~((uint16_t)~0 << 4));
+    header->rcode = (uint16_t)((value >> 0) & ~((uint16_t)~0 << 4));
 }
 
 std::string get_dns_error(uint16_t error_code)
