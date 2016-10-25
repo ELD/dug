@@ -7,7 +7,7 @@ int main(int argc, const char *argv[])
     std::string ip_to_find, nameserver_to_query;
     struct sockaddr_in serveraddr;
     std::vector<std::string> valid_record_types{"A", "CNAME", "NS", "MX", "SOA", "PTR"};
-    bool found_answer = false;
+    bool found_answer = false, debug = false;
 
     //////////////////////////////////////////////////////////////////////////////////
     // Command Line Arguments
@@ -19,6 +19,7 @@ int main(int argc, const char *argv[])
              po::value<std::string>()->value_name("record type")->default_value("A"),
              "Type of the requested DNS record"
             )
+            ("debug,d", "Print program trace")
             ("domain", po::value<std::string>(), "The domain to query DNS records for")
             ("server", po::value<std::string>(), "The DNS server to query");
 
@@ -48,11 +49,16 @@ int main(int argc, const char *argv[])
     if (vmap.count("type")) {
         record_type = vmap["type"].as<std::string>();
     }
+
+    if (vmap.count("debug")) {
+        debug = true;
+    }
     //////////////////////////////////////////////////////////////////////////////////
 
     //////////////////////////////////////////////////////////////////////////////////
     // Opening connection
     //////////////////////////////////////////////////////////////////////////////////
+    // TODO: Begin loop here
     ip_to_find = (char *)domain_to_dns_format(vmap["domain"].as<std::string>());
     nameserver_to_query = vmap["server"].as<std::string>();
 
@@ -61,17 +67,7 @@ int main(int argc, const char *argv[])
         return 1;
     }
 
-    sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
-
-    if (sockfd < 0) {
-        std::cerr << "Binding to socket failed" << std::endl;
-        exit(1);
-    }
-
-    memset(&serveraddr, 0, sizeof(serveraddr));
-    serveraddr.sin_family = PF_INET;
-    serveraddr.sin_addr.s_addr = inet_addr(nameserver_to_query.c_str());
-    serveraddr.sin_port = htons(PORT_NO);
+    uint8_t *ans_buf = send_and_recv(ip_to_find, nameserver_to_query);
 
     size_t header_size = sizeof(DNSQueryHeader);
     size_t question_size = sizeof(DNSQueryQuestion);
@@ -79,39 +75,10 @@ int main(int argc, const char *argv[])
     size_t domain_to_query_size = ip_to_find.size() + 1;
     size_t total_size = header_size + question_size + domain_to_query_size;
 
-    // Hehe this is fun, and dangerous. Man, do I love C++!
-    uint8_t *send_buf = new uint8_t[total_size];
-    DNSQueryHeader *header = (DNSQueryHeader *)send_buf;
-    make_query_header(header);
-
-    char *domain = (char *)(send_buf + header_size);
-    strcpy(domain, ip_to_find.c_str());
-
-    DNSQueryQuestion *question = (DNSQueryQuestion *)(send_buf + header_size + domain_to_query_size);
-    make_query_question(question);
-
-    //////////////////////////////////////////////////////////////////////////////////
-    // Sending and receiving the data and parsing it
-    //////////////////////////////////////////////////////////////////////////////////
-    socklen_t len = sizeof(serveraddr);
-    n = sendto(sockfd, send_buf, total_size, 0, (const sockaddr *)&serveraddr, len);
-    if (n < 0) {
-        std::cerr << "Error in sending: " << strerror(errno) << std::endl;
-        close_socket(sockfd);
-        exit(-1);
-    }
-
-    // Max DNS packet size is 512 bytes as per RFC 1035 (?)
-    uint8_t *ans_buf = new uint8_t[512];
-    n = recvfrom(sockfd, ans_buf, 512, 0, (sockaddr *)&serveraddr, &len);
-    if (n < 0) {
-        std::cerr << "Error in receiving: " << strerror(errno) << std::endl;
-        close_socket(sockfd);
-        exit(-1);
-    }
-
     // TODO: If no answers provided, do recursive requests
-    header = (DNSQueryHeader *)ans_buf;
+    // TODO: If no authoritative or additional records, start from the root server and work your way down
+    DNSQueryHeader *header = (DNSQueryHeader *)ans_buf;
+    // Because of byte order, we have to do some extra work to fill the second 16 bit value properly
     decode_header(header, ntohs(((ans_buf[3] << 8) | ans_buf[2])));
 
     if (header->rcode != 0) {
@@ -119,41 +86,87 @@ int main(int argc, const char *argv[])
         return 1;
     }
 
-    // buf contains header + domain + question + answer
-    // Read the domain in the answer section to figure out where the rest of the answer begins
-    size_t domain_offset = total_size;
-    if (is_pointer(ans_buf[total_size])) {
-        domain_offset = ans_buf[total_size + 1];
+    if (header->ancount < 1 && header->arcount < 1 && header->nscount < 1) {
+        std::cout << "No records were found for the specified query" << std::endl;
+        return 1;
     }
 
-    std::string answer_name = read_name(ans_buf, domain_offset);
+    if (debug) {
+        if (header->ancount < 1) {
+            std::cout << "No answers were found, checking additional sections" << std::endl;
+        }
 
-    size_t answer_offset = total_size;
-    if (is_pointer(ans_buf[total_size])) {
-        answer_offset += 2;
-    }
-    else {
-        answer_offset += answer_name.size() + 1;
-    }
+        if (header->nscount > 0) {
+            std::cout << "Authority records found, checking with them to continue the query" << std::endl;
+        }
 
-    DNSAnswerSegment *answer = (DNSAnswerSegment *)&ans_buf[answer_offset];
-
-    if (decode_answer_type(answer->type) == "A") {
-        size_t rd_data_start = answer_offset + sizeof(DNSAnswerSegment);
-        uint32_t ip_addr;
-        ip_addr = ans_buf[rd_data_start] |
-                (ans_buf[rd_data_start + 1] << 8) |
-                (ans_buf[rd_data_start + 2] << 16) |
-                (ans_buf[rd_data_start + 3] << 24);
-        std::string ip = decode_ip(ip_addr);
-        if (header->aa == 1) {
-            std::cout << "Authoritative answer: " << ip << std::endl;
-        } else {
-            std::cout << "Non-authoritative answer: " << ip << std::endl;
+        if (header->arcount > 0) {
+            std::cout << "Additional records found, using these as helpers to continue the query" << std::endl;
         }
     }
 
-    delete[] send_buf;
+    // buf contains header + domain + question + answer
+    // Read the domain in the answer section to figure out where the rest of the answer begins
+    if (header->ancount > 0) {
+        size_t domain_offset = total_size;
+        if (is_pointer(ans_buf[total_size])) {
+            domain_offset = ans_buf[total_size + 1];
+        }
+
+        std::string answer_name = read_name(ans_buf, domain_offset);
+
+        size_t answer_offset = total_size;
+        if (is_pointer(ans_buf[total_size])) {
+            answer_offset += 2;
+        }
+        else {
+            answer_offset += answer_name.size() + 1;
+        }
+
+        DNSAnswerSegment *answer = (DNSAnswerSegment *)&ans_buf[answer_offset];
+
+        // Read answer section if it exists
+        if (decode_answer_type(answer->type) == "A") {
+            size_t rd_data_start = answer_offset + sizeof(DNSAnswerSegment);
+            uint32_t ip_addr;
+            ip_addr = ans_buf[rd_data_start] |
+                    (ans_buf[rd_data_start + 1] << 8) |
+                    (ans_buf[rd_data_start + 2] << 16) |
+                    (ans_buf[rd_data_start + 3] << 24);
+            std::string ip = decode_ip(ip_addr);
+            if (header->aa == 1) {
+                std::cout << "Authoritative answer: " << ip << std::endl;
+            } else {
+                std::cout << "Non-authoritative answer: " << ip << std::endl;
+            }
+        } else if (decode_answer_type(answer->type) == "CNAME") {
+            if (header->aa == 1) {
+                std::cout << "Authoritative answer: " << std::endl;
+            } else {
+                std::cout << "Non-authoritative answer: " << std::endl;
+            }
+        } else if (decode_answer_type(answer->type) == "NS") {
+            if (header->aa == 1) {
+                std::cout << "Authoritative answer: " << std::endl;
+            } else {
+                std::cout << "Non-authoritative answer: " << std::endl;
+            }
+        }
+
+        return 0;
+    }
+
+    // Read authority section if it exists
+    if (header->nscount > 0) {
+
+    }
+
+    // Read additional section if exists
+    if (header->arcount > 0) {
+
+    }
+
+//    delete[] send_buf;
     delete[] ans_buf;
     close_socket(sockfd);
 

@@ -7,11 +7,12 @@
 
 #include "structures.h"
 
+uint8_t *send_and_recv(std::string const &, std::string const &);
+
 void make_query_header(DNSQueryHeader *);
 
 void make_query_question(DNSQueryQuestion *);
 
-// TODO: write directly to buffer
 uint8_t *domain_to_dns_format(std::string);
 
 void close_socket(int);

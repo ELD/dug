@@ -4,6 +4,67 @@
 
 #include "../headers/includes.h"
 
+uint8_t *send_and_recv(std::string const &ip_to_find, std::string const &nameserver_to_query) {
+    int sockfd;
+    ssize_t n;
+    struct sockaddr_in serveraddr;
+
+    sockfd = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+    if (sockfd < 0) {
+        std::cerr << "Binding to socket failed" << std::endl;
+        exit(1);
+    }
+
+    memset(&serveraddr, 0, sizeof(serveraddr));
+    serveraddr.sin_family = PF_INET;
+    serveraddr.sin_addr.s_addr = inet_addr(nameserver_to_query.c_str());
+    serveraddr.sin_port = htons(PORT_NO);
+
+    size_t header_size = sizeof(DNSQueryHeader);
+    size_t question_size = sizeof(DNSQueryQuestion);
+    // Need to add one since c_str() adds a null terminator
+    size_t domain_to_query_size = ip_to_find.size() + 1;
+    size_t total_size = header_size + question_size + domain_to_query_size;
+
+    // Hehe this is fun, and dangerous. Man, do I love C++!
+    uint8_t *send_buf = new uint8_t[total_size];
+    DNSQueryHeader *header = (DNSQueryHeader *)send_buf;
+    make_query_header(header);
+
+    char *domain = (char *)(send_buf + header_size);
+    strcpy(domain, ip_to_find.c_str());
+
+    DNSQueryQuestion *question = (DNSQueryQuestion *)(send_buf + header_size + domain_to_query_size);
+    make_query_question(question);
+
+    //////////////////////////////////////////////////////////////////////////////////
+    // Sending and receiving the data and parsing it
+    //////////////////////////////////////////////////////////////////////////////////
+    socklen_t len = sizeof(serveraddr);
+    n = sendto(sockfd, send_buf, total_size, 0, (const sockaddr *)&serveraddr, len);
+    if (n < 0) {
+        std::cerr << "Error in sending: " << strerror(errno) << std::endl;
+        close_socket(sockfd);
+        exit(-1);
+    }
+
+    delete[] send_buf;
+
+    // Max DNS packet size is 512 bytes as per RFC 1035 (?)
+    uint8_t *ans_buf = new uint8_t[512];
+    n = recvfrom(sockfd, ans_buf, 512, 0, (sockaddr *)&serveraddr, &len);
+    if (n < 0) {
+        std::cerr << "Error in receiving: " << strerror(errno) << std::endl;
+        close_socket(sockfd);
+        exit(-1);
+    }
+
+    close_socket(sockfd);
+
+    return ans_buf;
+}
+
 void make_query_header(DNSQueryHeader *header)
 {
     header->id = htons(getpid());
@@ -163,3 +224,4 @@ std::string get_dns_error(uint16_t error_code)
 
     return error;
 }
+
