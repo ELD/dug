@@ -52,11 +52,4 @@ typedef struct {
 } DNSAnswerSegment;
 #pragma pack(pop)
 
-typedef struct {
-    uint32_t ip_addr;
-} RDDataARecord;
-
-// nameOffset is 0xc0XX
-// mask with     0x3FFF
-
 #endif // DUG_STRUCTURES_H

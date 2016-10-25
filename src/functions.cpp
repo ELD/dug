@@ -4,7 +4,39 @@
 
 #include "../headers/includes.h"
 
-uint8_t *send_and_recv(std::string const &ip_to_find, std::string const &nameserver_to_query) {
+std::pair<po::options_description, po::variables_map> make_command_line_parser(int argc, const char* argv[])
+{
+    //////////////////////////////////////////////////////////////////////////////////
+    // Command Line Arguments
+    //////////////////////////////////////////////////////////////////////////////////
+    po::options_description options{"Allowed Options"};
+    options.add_options()
+            ("help,h", "Help using dug")
+            ("type,t",
+             po::value<std::string>()->value_name("record type")->default_value("A"),
+             "Type of the requested DNS record"
+            )
+            ("debug,d", "Print program trace")
+            ("domain", po::value<std::string>(), "The domain to query DNS records for")
+            ("server", po::value<std::string>(), "The DNS server to query");
+
+    po::positional_options_description pa_options;
+    pa_options.add("domain", 1);
+    pa_options.add("server", 2);
+
+    po::command_line_parser parser{argc, argv};
+    parser.options(options).positional(pa_options).allow_unregistered();
+
+    po::variables_map vmap;
+    po::store(parser.run(), vmap);
+    po::notify(vmap);
+    //////////////////////////////////////////////////////////////////////////////////
+
+    return make_pair(options, vmap);
+}
+
+uint8_t *send_and_recv(std::string const &ip_to_find, std::string const &nameserver_to_query, std::string const &q_type)
+{
     int sockfd;
     ssize_t n;
     struct sockaddr_in serveraddr;
@@ -36,7 +68,7 @@ uint8_t *send_and_recv(std::string const &ip_to_find, std::string const &nameser
     strcpy(domain, ip_to_find.c_str());
 
     DNSQueryQuestion *question = (DNSQueryQuestion *)(send_buf + header_size + domain_to_query_size);
-    make_query_question(question);
+    make_query_question(question, q_type);
 
     //////////////////////////////////////////////////////////////////////////////////
     // Sending and receiving the data and parsing it
@@ -82,9 +114,27 @@ void make_query_header(DNSQueryHeader *header)
     header->arcount = 0;
 }
 
-void make_query_question(DNSQueryQuestion *question)
+void make_query_question(DNSQueryQuestion *question, std::string const &q_type)
 {
-    question->qtype = ntohs(1);
+    if (q_type == "A") {
+        question->qtype = ntohs(1);
+    }
+    else if (q_type == "NS") {
+        question->qtype = ntohs(2);
+    }
+    else if (q_type == "CNAME") {
+        question->qtype = ntohs(5);
+    }
+    else if (q_type == "SOA") {
+        question->qtype = ntohs(6);
+    }
+    else if (q_type == "MX") {
+        question->qtype = ntohs(12);
+    }
+    else if (q_type == "PTR") {
+        question->qtype = ntohs(15);
+    }
+
     question->qclass = ntohs(1);
 }
 
@@ -125,15 +175,19 @@ uint8_t *domain_to_dns_format(std::string domain)
 
 void close_socket(int fd) { close(fd); }
 
-std::string read_name(uint8_t *buffer, size_t name_start)
+std::pair<std::string, int> read_name(uint8_t *buffer, size_t name_start)
 {
     std::string domain;
     // read until null terminator
     // ex: 3www6google3com
+    int read_bytes = 0;
+    bool following_pointer = false;
     size_t ptr = name_start;
     while (buffer[ptr] != 0) {
         if (buffer[ptr] == 192) {
             ptr = buffer[ptr + 1];
+            following_pointer = true;
+            read_bytes += 2;
         }
 
         size_t num = buffer[ptr];
@@ -143,17 +197,16 @@ std::string read_name(uint8_t *buffer, size_t name_start)
 
         domain += ".";
         ptr += num + 1;
+        !following_pointer ? read_bytes += num + 1 : 0;
     }
 
-    return domain;
+    return make_pair(domain, read_bytes);
 }
-
-bool is_pointer(uint8_t first_word) { return first_word == 192; }
 
 std::string decode_answer_type(uint16_t answer_type)
 {
     std::string str_answer_type;
-    switch (ntohs(answer_type)) {
+    switch (answer_type) {
     case 1:
         str_answer_type = "A";
         break;
@@ -224,4 +277,3 @@ std::string get_dns_error(uint16_t error_code)
 
     return error;
 }
-

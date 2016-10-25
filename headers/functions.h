@@ -5,21 +5,23 @@
 #ifndef DUG_FUNCTIONS_H
 #define DUG_FUNCTIONS_H
 
-#include "structures.h"
+#include "includes.h"
 
-uint8_t *send_and_recv(std::string const &, std::string const &);
+namespace po = boost::program_options;
+
+std::pair<po::options_description, po::variables_map> make_command_line_parser(int, const char**);
+
+uint8_t *send_and_recv(std::string const &, std::string const &, std::string const &);
 
 void make_query_header(DNSQueryHeader *);
 
-void make_query_question(DNSQueryQuestion *);
+void make_query_question(DNSQueryQuestion *, std::string const &);
 
 uint8_t *domain_to_dns_format(std::string);
 
 void close_socket(int);
 
-std::string read_name(uint8_t *, size_t);
-
-bool is_pointer(uint8_t);
+std::pair<std::string, int> read_name(uint8_t *, size_t);
 
 std::string decode_answer_type(uint16_t);
 
