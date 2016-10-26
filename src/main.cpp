@@ -32,6 +32,9 @@ int main(int argc, const char *argv[])
         debug = true;
     }
 
+    if (debug)
+        std::cout << "Searching for record of type: " << record_type << std::endl;
+
     if (std::find(valid_record_types.begin(), valid_record_types.end(), record_type) == valid_record_types.end()) {
         std::cout << "That record type is not supported." << std::endl;
         return 1;
@@ -49,8 +52,6 @@ int main(int argc, const char *argv[])
         auto domain_to_query_size = ip_to_find.size() + 1;
         auto total_size = header_size + question_size + domain_to_query_size;
 
-        // TODO: If no answers provided, do recursive requests
-        // TODO: If no authoritative or additional records, start from the root server and work your way down
         auto *header = (DNSQueryHeader *)ans_buf;
         // Because of byte order, we have to do some extra work to fill the second 16 bit value properly
         decode_header(header, ntohs(((ans_buf[3] << 8) | ans_buf[2])));
@@ -58,7 +59,13 @@ int main(int argc, const char *argv[])
         if (header->rcode != 0) {
             if (debug) {
                 std::cout << "An error occurred: " << get_dns_error(header->rcode) << std::endl;
-                std::cout << "Following up with: " << ROOT_NAMESERVER << std::endl;
+                if (first_time) {
+                    std::cout << "Following up with: " << ROOT_NAMESERVER << std::endl;
+                    first_time = false;
+                }
+                else {
+                    return 1;
+                }
             }
 
             nameserver_to_query = std::string(ROOT_NAMESERVER);
@@ -133,14 +140,45 @@ int main(int argc, const char *argv[])
 
                 found_answer = true;
             }
-            else if (decode_answer_type(ntohs(answer->type)) == "NS" &&
-                     record_type == decode_answer_type(ntohs(answer->type))) {
+            else if ((decode_answer_type(ntohs(answer->type)) == "NS" &&
+                      record_type == decode_answer_type(ntohs(answer->type))) ||
+                     (decode_answer_type(ntohs(answer->type)) == "PTR" &&
+                      record_type == decode_answer_type(ntohs(answer->type)))) {
                 std::pair<std::string, int> ns = read_name(ans_buf, rd_data_start);
                 if (header->aa == 1) {
                     std::cout << "Authoritative answer: " << ns.first << std::endl;
                 }
                 else {
                     std::cout << "Non-authoritative answer: " << ns.first << std::endl;
+                }
+
+                found_answer = true;
+            }
+            else if (decode_answer_type(ntohs(answer->type)) == "MX" &&
+                     record_type == decode_answer_type(ntohs(answer->type))) {
+                uint16_t preference = ans_buf[rd_data_start] << 8 | ans_buf[rd_data_start + 1];
+                auto mx_record = read_name(ans_buf, rd_data_start + 2);
+
+                if (header->aa == 1) {
+                    std::cout << "Authoritative answer: " << preference << " " << mx_record.first << std::endl;
+                }
+                else {
+                    std::cout << "Non-authoritative answer: " << preference << " " << mx_record.first << std::endl;
+                }
+
+                found_answer = true;
+            }
+            else if (decode_answer_type(ntohs(answer->type)) == "SOA" &&
+                     record_type == decode_answer_type(ntohs(answer->type))) {
+                auto primary_ns = read_name(ans_buf, rd_data_start);
+                auto admin_mb = read_name(ans_buf, rd_data_start + primary_ns.second);
+
+                if (header->aa == 1) {
+                    std::cout << "Authoritative answer: " << primary_ns.first << "\t" << admin_mb.first << std::endl;
+                }
+                else {
+                    std::cout << "Non-authoritative answer: " << primary_ns.first << "\t" << admin_mb.first
+                              << std::endl;
                 }
 
                 found_answer = true;

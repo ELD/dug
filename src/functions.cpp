@@ -4,21 +4,17 @@
 
 #include "../headers/includes.h"
 
-std::pair<po::options_description, po::variables_map> make_command_line_parser(int argc, const char* argv[])
+std::pair<po::options_description, po::variables_map> make_command_line_parser(int argc, const char *argv[])
 {
     //////////////////////////////////////////////////////////////////////////////////
     // Command Line Arguments
     //////////////////////////////////////////////////////////////////////////////////
     po::options_description options{"Allowed Options"};
-    options.add_options()
-            ("help,h", "Help using dug")
-            ("type,t",
-             po::value<std::string>()->value_name("record type")->default_value("A"),
-             "Type of the requested DNS record"
-            )
-            ("debug,d", "Print program trace")
-            ("domain", po::value<std::string>(), "The domain to query DNS records for")
-            ("server", po::value<std::string>(), "The DNS server to query");
+    options.add_options()("help,h", "Help using dug")(
+        "type,t", po::value<std::string>()->value_name("record type")->default_value("A"),
+        "Type of the requested DNS record")("debug,d", "Print program trace")(
+        "domain", po::value<std::string>(), "The domain to query DNS records for")("server", po::value<std::string>(),
+                                                                                   "The DNS server to query");
 
     po::positional_options_description pa_options;
     pa_options.add("domain", 1);
@@ -117,25 +113,25 @@ void make_query_header(DNSQueryHeader *header)
 void make_query_question(DNSQueryQuestion *question, std::string const &q_type)
 {
     if (q_type == "A") {
-        question->qtype = ntohs(1);
+        question->qtype = htons(1);
     }
     else if (q_type == "NS") {
-        question->qtype = ntohs(2);
+        question->qtype = htons(2);
     }
     else if (q_type == "CNAME") {
-        question->qtype = ntohs(5);
+        question->qtype = htons(5);
     }
     else if (q_type == "SOA") {
-        question->qtype = ntohs(6);
-    }
-    else if (q_type == "MX") {
-        question->qtype = ntohs(12);
+        question->qtype = htons(6);
     }
     else if (q_type == "PTR") {
-        question->qtype = ntohs(15);
+        question->qtype = htons(12);
+    }
+    else if (q_type == "MX") {
+        question->qtype = htons(15);
     }
 
-    question->qclass = ntohs(1);
+    question->qclass = htons(1);
 }
 
 uint8_t *domain_to_dns_format(std::string domain)
@@ -221,10 +217,10 @@ std::string decode_answer_type(uint16_t answer_type)
         str_answer_type = "SOA";
         break;
     case 12:
-        str_answer_type = "MX";
+        str_answer_type = "PTR";
         break;
     case 15:
-        str_answer_type = "PTR";
+        str_answer_type = "MX";
         break;
     default:
         break;

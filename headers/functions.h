@@ -9,7 +9,7 @@
 
 namespace po = boost::program_options;
 
-std::pair<po::options_description, po::variables_map> make_command_line_parser(int, const char**);
+std::pair<po::options_description, po::variables_map> make_command_line_parser(int, const char **);
 
 uint8_t *send_and_recv(std::string const &, std::string const &, std::string const &);
 
