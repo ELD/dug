@@ -186,8 +186,8 @@ std::pair<std::string, int> read_name(uint8_t *buffer, size_t name_start)
     while (buffer[ptr] != 0) {
         if (buffer[ptr] == 192) {
             ptr = buffer[ptr + 1];
+            !following_pointer ? read_bytes += 2 : 0;
             following_pointer = true;
-            read_bytes += 2;
         }
 
         size_t num = buffer[ptr];
@@ -195,8 +195,9 @@ std::pair<std::string, int> read_name(uint8_t *buffer, size_t name_start)
             domain += buffer[ptr + i + 1];
         }
 
-        domain += ".";
         ptr += num + 1;
+        if (buffer[ptr] != '\0')
+            domain += ".";
         !following_pointer ? read_bytes += num + 1 : 0;
     }
 

@@ -9,7 +9,7 @@ find_package(BOOST COMPONENTS program_options REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 link_directories(${Boost_LIBRARY_DIRS})
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14 -g")
 set(CMAKE_EXE_LINKER_FLAGS "-lboost_system -lboost_program_options")
 
 set(SOURCE_FILES src/main.cpp headers/includes.h headers/constants.h headers/structures.h headers/functions.h src/functions.cpp)

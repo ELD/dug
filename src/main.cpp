@@ -2,9 +2,9 @@
 
 int main(int argc, const char *argv[])
 {
-    std::string ip_to_find, nameserver_to_query;
+    std::string ip_to_find, nameserver_to_query, original_question;
     std::vector<std::string> valid_record_types{"A", "CNAME", "NS", "MX", "SOA", "PTR"};
-    bool found_answer = false, debug = false;
+    bool found_answer = false, debug = false, first_time = true;
     uint8_t *ans_buf = nullptr;
 
     auto pair = make_command_line_parser(argc, argv);
@@ -15,7 +15,8 @@ int main(int argc, const char *argv[])
         std::cout << "Usage: dug [options] [domain] [server]" << std::endl;
         std::cout << options << std::endl;
         return 0;
-    } else if (!vmap.count("domain") || !vmap.count("server")) {
+    }
+    else if (!vmap.count("domain") || !vmap.count("server")) {
         std::cout << "Too few arguments provided. Printing usage." << std::endl;
         std::cout << "Usage: dug [options] [domain] [server]" << std::endl;
         std::cout << options << std::endl;
@@ -36,12 +37,11 @@ int main(int argc, const char *argv[])
         return 1;
     }
 
+    original_question = vmap["domain"].as<std::string>();
+    ip_to_find = (char *)domain_to_dns_format(original_question);
+    nameserver_to_query = vmap["server"].as<std::string>();
     while (!found_answer) {
-        // TODO: Begin loop here
-        ip_to_find = (char *) domain_to_dns_format(vmap["domain"].as<std::string>());
-        nameserver_to_query = vmap["server"].as<std::string>();
-
-        auto *ans_buf = send_and_recv(ip_to_find, nameserver_to_query, record_type);
+        ans_buf = send_and_recv(ip_to_find, nameserver_to_query, record_type);
 
         auto header_size = sizeof(DNSQueryHeader);
         auto question_size = sizeof(DNSQueryQuestion);
@@ -51,12 +51,22 @@ int main(int argc, const char *argv[])
 
         // TODO: If no answers provided, do recursive requests
         // TODO: If no authoritative or additional records, start from the root server and work your way down
-        auto *header = (DNSQueryHeader *) ans_buf;
+        auto *header = (DNSQueryHeader *)ans_buf;
         // Because of byte order, we have to do some extra work to fill the second 16 bit value properly
         decode_header(header, ntohs(((ans_buf[3] << 8) | ans_buf[2])));
 
         if (header->rcode != 0) {
-            std::cout << "An error occurred: " << get_dns_error(header->rcode) << std::endl;
+            if (debug) {
+                std::cout << "An error occurred: " << get_dns_error(header->rcode) << std::endl;
+                std::cout << "Following up with: " << ROOT_NAMESERVER << std::endl;
+            }
+
+            nameserver_to_query = std::string(ROOT_NAMESERVER);
+            continue;
+        }
+
+        if (header->aa == 1 && header->ancount == 0) {
+            std::cout << "The requested domain does not appear to exist." << std::endl;
             return 1;
         }
 
@@ -80,50 +90,56 @@ int main(int argc, const char *argv[])
         }
 
         // buf contains header + domain + question + answer
-        // Read the domain in the answer section to figure out where the rest of the answer begins, count # of bytes from read_name()
+        // Read the domain in the answer section to figure out where the rest of the answer begins, count # of bytes
+        // from read_name()
         auto domain_offset = total_size;
         if (header->ancount > 0) {
             auto name_and_offset = read_name(ans_buf, domain_offset);
 
             auto answer_offset = total_size + name_and_offset.second;
 
-            auto *answer = (DNSAnswerSegment *) &ans_buf[answer_offset];
-            answer->responseClass = ntohs(answer->responseClass);
-            answer->ttl = ntohl(answer->ttl);
-            answer->rdlength = ntohs(answer->rdlength);
-            answer->type = ntohs(answer->type);
+            auto *answer = (DNSAnswerSegment *)&ans_buf[answer_offset];
+
+            if (debug)
+                std::cout << "Answer domain: " << name_and_offset.first << std::endl;
 
             // Read answer section if it exists
             auto rd_data_start = answer_offset + sizeof(DNSAnswerSegment);
-            if (decode_answer_type(answer->type) == "A" && record_type == decode_answer_type(answer->type)) {
+            if (decode_answer_type(ntohs(answer->type)) == "A" &&
+                record_type == decode_answer_type(ntohs(answer->type)) && name_and_offset.first == original_question) {
                 uint32_t ip_addr;
                 // Don't worry about manually flipping byte order, just use ntohl()
-                ip_addr = ans_buf[rd_data_start] << 24 |
-                          ans_buf[rd_data_start + 1] << 16 |
-                          ans_buf[rd_data_start + 2] << 8 |
-                          ans_buf[rd_data_start + 3];
+                ip_addr = ans_buf[rd_data_start] << 24 | ans_buf[rd_data_start + 1] << 16 |
+                          ans_buf[rd_data_start + 2] << 8 | ans_buf[rd_data_start + 3];
                 auto ip = decode_ip(ntohl(ip_addr));
                 if (header->aa == 1) {
                     std::cout << "Authoritative answer: " << ip << std::endl;
-                } else {
+                }
+                else {
                     std::cout << "Non-authoritative answer: " << ip << std::endl;
                 }
 
                 found_answer = true;
-            } else if (decode_answer_type(answer->type) == "CNAME" && record_type == decode_answer_type(answer->type)) {
+            }
+            else if (decode_answer_type(ntohs(answer->type)) == "CNAME" &&
+                     record_type == decode_answer_type(ntohs(answer->type))) {
                 std::pair<std::string, int> ns = read_name(ans_buf, rd_data_start);
                 if (header->aa == 1) {
                     std::cout << "Authoritative answer: " << ns.first << std::endl;
-                } else {
+                }
+                else {
                     std::cout << "Non-authoritative answer: " << ns.first << std::endl;
                 }
 
                 found_answer = true;
-            } else if (decode_answer_type(answer->type) == "NS" && record_type == decode_answer_type(answer->type)) {
+            }
+            else if (decode_answer_type(ntohs(answer->type)) == "NS" &&
+                     record_type == decode_answer_type(ntohs(answer->type))) {
                 std::pair<std::string, int> ns = read_name(ans_buf, rd_data_start);
                 if (header->aa == 1) {
                     std::cout << "Authoritative answer: " << ns.first << std::endl;
-                } else {
+                }
+                else {
                     std::cout << "Non-authoritative answer: " << ns.first << std::endl;
                 }
 
@@ -133,17 +149,89 @@ int main(int argc, const char *argv[])
 
         if (!found_answer) {
             // Read authority section if it exists
-            if (header->nscount > 0) {
+            std::vector<std::pair<std::string, std::string>> nameservers_or_cnames;
+            if (ntohs(header->nscount > 0)) {
+                if (debug)
+                    std::cout << "Reading authoritative records" << std::endl;
+
+                size_t answer_offset = domain_offset;
+                for (int i = 0; i < ntohs(header->nscount); ++i) {
+
+                    auto name_and_offset = read_name(ans_buf, answer_offset);
+                    if (debug)
+                        std::cout << "Domain: " << name_and_offset.first << std::endl;
+
+                    answer_offset += name_and_offset.second;
+
+                    DNSAnswerSegment *answer = (DNSAnswerSegment *)&ans_buf[answer_offset];
+
+                    if (debug)
+                        std::cout << "Type: " << decode_answer_type(ntohs(answer->type)) << std::endl;
+
+                    auto rdata_and_offset = read_name(ans_buf, answer_offset + sizeof(DNSAnswerSegment));
+                    answer_offset += sizeof(DNSAnswerSegment) + rdata_and_offset.second;
+
+                    if (debug)
+                        std::cout << "Checking with: " << rdata_and_offset.first << std::endl;
+
+                    nameservers_or_cnames.emplace_back(
+                        std::make_pair(rdata_and_offset.first, decode_answer_type(ntohs(answer->type))));
+                }
+
+                domain_offset = answer_offset;
             }
 
             // Read additional section if exists
-            if (header->arcount > 0) {
+            if (ntohs(header->arcount > 0)) {
+                if (debug)
+                    std::cout << "Reading additional records" << std::endl;
+
+                size_t answer_offset = domain_offset;
+                for (int i = 0; i < ntohs(header->arcount); ++i) {
+                    auto name_and_offset = read_name(ans_buf, answer_offset);
+
+                    if (debug)
+                        std::cout << "Domain: " << name_and_offset.first << std::endl;
+
+                    answer_offset += name_and_offset.second;
+
+                    DNSAnswerSegment *answer = (DNSAnswerSegment *)&ans_buf[answer_offset];
+                    answer_offset += sizeof(DNSAnswerSegment);
+
+                    if (debug)
+                        std::cout << "Type: " << decode_answer_type(ntohs(answer->type)) << std::endl;
+
+                    if (decode_answer_type(ntohs(answer->type)) == "A") {
+                        uint32_t ip_addr;
+                        // Don't worry about manually flipping byte order, just use ntohl()
+                        ip_addr = ans_buf[answer_offset] << 24 | ans_buf[answer_offset + 1] << 16 |
+                                  ans_buf[answer_offset + 2] << 8 | ans_buf[answer_offset + 3];
+                        auto ip = decode_ip(ntohl(ip_addr));
+
+                        answer_offset += 4;
+
+                        if (std::find(nameservers_or_cnames.begin(), nameservers_or_cnames.end(),
+                                      std::make_pair(name_and_offset.first, std::string("NS"))) !=
+                                nameservers_or_cnames.end() ||
+                            std::find(nameservers_or_cnames.begin(), nameservers_or_cnames.end(),
+                                      std::make_pair(name_and_offset.first, std::string("CNAME"))) !=
+                                nameservers_or_cnames.end()) {
+                            nameserver_to_query = ip;
+                            if (debug)
+                                std::cout << "Following up with: " << nameserver_to_query << std::endl;
+
+                            break;
+                        }
+                    }
+                    else {
+                        answer_offset += ntohs(answer->rdlength);
+                    }
+                }
             }
         }
 
         memset(ans_buf, 0, 512);
     }
-
 
     delete[] ans_buf;
 
