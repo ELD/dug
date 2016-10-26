@@ -24,7 +24,6 @@
 
 // Local includes
 #include "constants.h"
-#include "functions.h"
 #include "structures.h"
 
 namespace po = boost::program_options;
