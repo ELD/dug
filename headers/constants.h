@@ -7,6 +7,7 @@
 
 #include <string>
 
+// DNS Port
 const int PORT_NO = 53;
 // IP of a.root-servers.net
 const std::string ROOT_NAMESERVER = "198.41.0.4";

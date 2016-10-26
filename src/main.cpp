@@ -1,6 +1,7 @@
 #include "../headers/includes.h"
 #include "../headers/functions.h"
 
+// CLion choked on the complexity of this and stopped giving me assistance on program flow :(
 int main(int argc, const char *argv[])
 {
     std::string ip_to_find, nameserver_to_query, original_question;
@@ -12,6 +13,7 @@ int main(int argc, const char *argv[])
     auto options = pair.first;
     auto vmap = pair.second;
 
+    // Check for command line parameters
     if (vmap.count("help")) {
         std::cout << "Usage: dug [options] [domain] [server]" << std::endl;
         std::cout << options << std::endl;
@@ -44,6 +46,7 @@ int main(int argc, const char *argv[])
     original_question = vmap["domain"].as<std::string>();
     ip_to_find = (char *)domain_to_dns_format(original_question);
     nameserver_to_query = vmap["server"].as<std::string>();
+    // Iterate until you find the answer you're looking for
     while (!found_answer) {
         ans_buf = send_and_recv(ip_to_find, nameserver_to_query, record_type);
 
@@ -57,9 +60,11 @@ int main(int argc, const char *argv[])
         // Because of byte order, we have to do some extra work to fill the second 16 bit value properly
         decode_header(header, ntohs(((ans_buf[3] << 8) | ans_buf[2])));
 
+        // If the rcode isn't normal, report an error
         if (header->rcode != 0) {
             if (debug) {
                 std::cout << "An error occurred: " << get_dns_error(header->rcode) << std::endl;
+                // If first time, try with a root server
                 if (first_time) {
                     std::cout << "Following up with: " << ROOT_NAMESERVER << std::endl;
                     first_time = false;
@@ -73,16 +78,19 @@ int main(int argc, const char *argv[])
             continue;
         }
 
+        // Doesn't look like the domain exists of an authority in the zone reports nada
         if (header->aa == 1 && header->ancount == 0) {
             std::cout << "The requested domain does not appear to exist." << std::endl;
             return 1;
         }
 
+        // Same thing here
         if (header->ancount < 1 && header->arcount < 1 && header->nscount < 1) {
             std::cout << "No records were found for the specified query" << std::endl;
             return 1;
         }
 
+        // Debug messages for checking record types
         if (debug) {
             if (header->ancount < 1) {
                 std::cout << "No answers were found, checking additional sections" << std::endl;
@@ -97,9 +105,7 @@ int main(int argc, const char *argv[])
             }
         }
 
-        // buf contains header + domain + question + answer
-        // Read the domain in the answer section to figure out where the rest of the answer begins, count # of bytes
-        // from read_name()
+        // Begin reading the answers and decode accordingly
         auto domain_offset = total_size;
         if (header->ancount > 0) {
             auto name_and_offset = read_name(ans_buf, domain_offset);
@@ -186,6 +192,7 @@ int main(int argc, const char *argv[])
             }
         }
 
+        // Only look at the authority and additional sections if you haven't found what you're looking for
         if (!found_answer) {
             // Read authority section if it exists
             std::vector<std::pair<std::string, std::string>> nameservers_or_cnames;
@@ -269,9 +276,11 @@ int main(int argc, const char *argv[])
             }
         }
 
+        // Reset the buffer for reuse;
         memset(ans_buf, 0, 512);
     }
 
+    // Clean up after yourself
     delete[] ans_buf;
 
     return 0;

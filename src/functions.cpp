@@ -243,6 +243,7 @@ std::string decode_ip(uint32_t ip_addr)
 
 void decode_header(DNSQueryHeader *header, uint16_t value)
 {
+    // Because of byte ordering, we have to do this nasty ranged bit mask to get it to proper byte order
     header->qr = (uint16_t)(value >> 15);
     header->opcode = (uint16_t)((value >> 11) & ~((uint16_t)~0 << 4));
     header->aa = (uint16_t)((value >> 10) & ~((uint16_t)~0 << 1));
